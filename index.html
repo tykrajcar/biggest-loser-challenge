@@ -5,16 +5,6 @@
 <title>Biggest Loser Challenge</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- PWA -->
-<link rel="manifest" href="data:application/json,{
-  &quot;name&quot;:&quot;Biggest Loser&quot;,
-  &quot;short_name&quot;:&quot;Biggest Loser&quot;,
-  &quot;start_url&quot;:&quot;.&quot;,
-  &quot;display&quot;:&quot;standalone&quot;,
-  &quot;background_color&quot;:&quot;#ffffff&quot;
-}">
-<meta name="theme-color" content="#ffffff">
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
@@ -75,82 +65,99 @@ button { padding:8px 14px; margin:4px; }
 const WEEKS = 12;
 const PIN = "1234";
 let locked = false;
+let chart;
 
 const tbody = document.querySelector("#tracker tbody");
 
-function addParticipant(name="") {
-  let row = document.createElement("tr");
-  row.innerHTML =
-    `<td><input value="${name}"></td>
-     <td><input type="number"></td>` +
-    Array.from({length:WEEKS},()=>`<td><input type="number"></td>`).join("") +
-    `<td></td><td></td><td>0</td>`;
-  tbody.appendChild(row);
-  save();
+/* ---------- AUTO SAVE ---------- */
+function enableAutoSave() {
+  document.querySelectorAll("input").forEach(input => {
+    input.oninput = save;
+  });
 }
 
+/* ---------- STORAGE ---------- */
 function save() {
   const data = [...tbody.rows].map(r =>
-    [...r.querySelectorAll("input")].map(i=>i.value).concat(r.cells[r.cells.length-1].innerText)
+    [...r.querySelectorAll("input")].map(i => i.value)
+      .concat(r.cells[r.cells.length-1].innerText)
   );
   localStorage.setItem("bl_data", JSON.stringify(data));
   localStorage.setItem("bl_log", document.getElementById("auditLog").innerHTML);
 }
 
 function load() {
-  const data = JSON.parse(localStorage.getItem("bl_data")||"[]");
-  data.forEach(d=>{
-    addParticipant(d[0]);
-    const row = tbody.rows[tbody.rows.length-1];
-    row.querySelectorAll("input").forEach((i,x)=>i.value=d[x]);
-    row.cells[row.cells.length-1].innerText=d[d.length-1]||0;
+  const data = JSON.parse(localStorage.getItem("bl_data") || "[]");
+  data.forEach(d => {
+    addParticipant(d[0], false);
+    const row = tbody.rows[tbody.rows.length - 1];
+    row.querySelectorAll("input").forEach((i, x) => i.value = d[x]);
+    row.cells[row.cells.length - 1].innerText = d[d.length - 1] || 0;
   });
   document.getElementById("auditLog").innerHTML =
-    localStorage.getItem("bl_log")||"";
+    localStorage.getItem("bl_log") || "";
 }
 
+/* ---------- PARTICIPANTS ---------- */
+function addParticipant(name = "", autosave = true) {
+  const row = document.createElement("tr");
+  row.innerHTML =
+    `<td><input value="${name}"></td>
+     <td><input type="number"></td>` +
+    Array.from({ length: WEEKS }, () => `<td><input type="number"></td>`).join("") +
+    `<td></td><td></td><td>0</td>`;
+  tbody.appendChild(row);
+  enableAutoSave();
+  if (autosave) save();
+}
+
+/* ---------- LOCK ---------- */
 function toggleLock() {
   const pin = prompt("Admin PIN");
   if (pin !== PIN) return alert("Wrong PIN");
   locked = !locked;
-  [...tbody.rows].forEach(r=>r.classList.toggle("locked",locked));
+  [...tbody.rows].forEach(r => r.classList.toggle("locked", locked));
 }
 
+/* ---------- LOG ---------- */
 function log(msg) {
   const li = document.createElement("li");
-  li.innerText = new Date().toLocaleString()+" — "+msg;
+  li.innerText = new Date().toLocaleString() + " — " + msg;
   document.getElementById("auditLog").prepend(li);
   save();
 }
 
+/* ---------- CALCULATIONS ---------- */
 function calculate() {
   let results = [];
-  [...tbody.rows].forEach(r=>r.classList.remove("winner","weekWinner"));
+  [...tbody.rows].forEach(r => r.classList.remove("winner", "weekWinner"));
 
-  [...tbody.rows].forEach((row,i)=>{
+  [...tbody.rows].forEach(row => {
     const inputs = row.querySelectorAll("input");
     const name = inputs[0].value;
     const start = +inputs[1].value;
-    const final = +inputs[WEEKS+1].value;
+    const final = +inputs[WEEKS + 1].value;
     if (!name || !start || !final) return;
 
-    const lbs = start-final;
-    const pct = (lbs/start)*100;
-    row.cells[WEEKS+2].innerText = lbs.toFixed(1);
-    row.cells[WEEKS+3].innerText = pct.toFixed(2)+"%";
-    results.push({row,i,name,pct,inputs});
+    const lbs = start - final;
+    const pct = (lbs / start) * 100;
+    row.cells[WEEKS + 2].innerText = lbs.toFixed(1);
+    row.cells[WEEKS + 3].innerText = pct.toFixed(2) + "%";
+    results.push({ row, name, pct, inputs });
   });
 
   if (!results.length) return;
 
-  const max = Math.max(...results.map(r=>r.pct));
-  results.forEach(r=>{ if (r.pct===max) r.row.classList.add("winner"); });
+  const max = Math.max(...results.map(r => r.pct));
+  results.forEach(r => {
+    if (r.pct === max) r.row.classList.add("winner");
+  });
 
-  results.sort((a,b)=>b.pct-a.pct);
+  results.sort((a, b) => b.pct - a.pct);
   const lb = document.querySelector("#leaderboard tbody");
-  lb.innerHTML="";
-  results.forEach((r,i)=>{
-    lb.innerHTML+=`<tr><td>${i+1}</td><td>${r.name}</td><td>${r.pct.toFixed(2)}%</td></tr>`;
+  lb.innerHTML = "";
+  results.forEach((r, i) => {
+    lb.innerHTML += `<tr><td>${i + 1}</td><td>${r.name}</td><td>${r.pct.toFixed(2)}%</td></tr>`;
   });
 
   weeklyWinner(results);
@@ -158,49 +165,57 @@ function calculate() {
   save();
 }
 
+/* ---------- WEEKLY MINI PRIZE ---------- */
 function weeklyWinner(results) {
   const week = prompt("Week to evaluate (1–12)");
-  if (!week || week<1 || week>12) return;
-  const w = week-1;
-  let best=null;
+  if (!week || week < 1 || week > 12) return;
 
-  results.forEach(r=>{
-    const prev = +r.inputs[w+1].value;
-    const curr = +r.inputs[w+2].value;
+  let best = null;
+  const w = week - 1;
+
+  results.forEach(r => {
+    const prev = +r.inputs[w + 1].value;
+    const curr = +r.inputs[w + 2].value;
     if (!prev || !curr) return;
-    const pct = (prev-curr)/prev;
-    if (!best || pct>best.pct) best={r,pct};
+    const pct = (prev - curr) / prev;
+    if (!best || pct > best.pct) best = { r, pct };
   });
 
   if (!best) return;
   best.r.row.classList.add("weekWinner");
-  const cell = best.r.row.cells[best.r.row.cells.length-1];
-  cell.innerText = (+cell.innerText)+1;
+
+  const cell = best.r.row.cells[best.r.row.cells.length - 1];
+  cell.innerText = (+cell.innerText) + 1;
 
   document.getElementById("weeklyWinner").innerText =
-    `Week ${week} Winner: ${best.r.name} (${(best.pct*100).toFixed(2)}%)`;
+    `Week ${week} Winner: ${best.r.name} (${(best.pct * 100).toFixed(2)}%)`;
 
   log(`Week ${week} mini prize → ${best.r.name}`);
 }
 
-let chart;
+/* ---------- CHART ---------- */
 function drawChart(results) {
-  const labels=[...Array(WEEKS)].map((_,i)=>"W"+(i+1));
-  const sets = results.map(r=>({
-    label:r.name,
-    data:[...Array(WEEKS)].map((_,i)=>+r.inputs[i+2].value||null),
-    fill:false
+  const labels = [...Array(WEEKS)].map((_, i) => "W" + (i + 1));
+  const datasets = results.map(r => ({
+    label: r.name,
+    data: [...Array(WEEKS)].map((_, i) => +r.inputs[i + 2].value || null),
+    fill: false
   }));
+
   if (chart) chart.destroy();
-  chart=new Chart(document.getElementById("progressChart"),{
-    type:"line",
-    data:{labels,datasets:sets}
+  chart = new Chart(document.getElementById("progressChart"), {
+    type: "line",
+    data: { labels, datasets }
   });
 }
 
-addParticipant();
-addParticipant();
+/* ---------- INIT ---------- */
 load();
+if (!tbody.rows.length) {
+  addParticipant();
+  addParticipant();
+}
+enableAutoSave();
 </script>
 </body>
 </html>
